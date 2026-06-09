@@ -1,4 +1,0 @@
-AuthType Basic
-AuthName "Blocket Bevakning"
-AuthUserFile /home/nrdiq/.htpasswd
-Require valid-user
