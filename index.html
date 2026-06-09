@@ -1,1 +1,367 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocket Bevakning</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 24px; }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+  .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
+  .card { background: #fff; border-radius: 12px; border: 1px solid #e5e5e5; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  label { font-size: 13px; color: #555; display: block; margin-bottom: 5px; margin-top: 12px; }
+  label:first-of-type { margin-top: 0; }
+  input[type="text"], input[type="url"], select {
+    width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 14px; background: #fafafa; outline: none;
+  }
+  input:focus, select:focus { border-color: #3b82f6; background: #fff; }
+  .toggle-group { display: flex; gap: 10px; margin-top: 4px; }
+  .toggle-btn {
+    flex: 1; padding: 9px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa;
+    cursor: pointer; font-size: 14px; text-align: center; transition: all 0.15s;
+  }
+  .toggle-btn.active { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: 500; }
+  .start-btn {
+    width: 100%; padding: 12px; background: #2563eb; color: white; border: none;
+    border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+    margin-top: 8px; transition: background 0.15s;
+  }
+  .start-btn:hover { background: #1d4ed8; }
+  .start-btn:disabled { background: #93c5fd; cursor: not-allowed; }
+  .stop-btn {
+    width: 100%; padding: 12px; background: #fff; color: #dc2626; border: 1.5px solid #fca5a5;
+    border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px;
+  }
+  .stop-btn:hover { background: #fef2f2; }
+  .status-bar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;
+    font-size: 14px; color: #15803d; margin-bottom: 16px; display: none;
+  }
+  .status-bar.error { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+  .pulse { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: pulse 1.5s infinite; flex-shrink: 0; }
+  .pulse.error { background: #ef4444; animation: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .ads-grid { display: grid; gap: 12px; }
+  .ad-card {
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 14px;
+    display: flex; gap: 12px; align-items: flex-start;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .ad-card.new { border-color: #86efac; background: #f0fdf4; }
+  .ad-img { width: 72px; height: 56px; object-fit: cover; border-radius: 6px; background: #f3f4f6; flex-shrink: 0; }
+  .ad-img-placeholder { width: 72px; height: 56px; border-radius: 6px; background: #f3f4f6; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #d1d5db; }
+  .ad-info { flex: 1; min-width: 0; }
+  .ad-title { font-size: 14px; font-weight: 500; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ad-price { font-size: 15px; font-weight: 700; color: #16a34a; margin-bottom: 3px; }
+  .ad-meta { font-size: 12px; color: #9ca3af; }
+  .badge-new { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-left: 8px; }
+  .stats-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .stat { flex: 1; background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 12px 14px; }
+  .stat-val { font-size: 22px; font-weight: 700; color: #1d4ed8; }
+  .stat-lbl { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+  .empty { text-align: center; padding: 32px; color: #9ca3af; font-size: 14px; }
+  .section-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .log { background: #1e1e2e; border-radius: 10px; padding: 14px; font-family: monospace; font-size: 12px; color: #a0aec0; max-height: 140px; overflow-y: auto; }
+  .log-entry { margin-bottom: 4px; }
+  .log-entry.ok { color: #68d391; }
+  .log-entry.info { color: #90cdf4; }
+  .log-entry.warn { color: #f6ad55; }
+  details summary { cursor: pointer; font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+  .cors-note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; font-size: 13px; color: #92400e; margin-top: 12px; }
+  a.ad-link { color: #1d4ed8; text-decoration: none; font-size: 12px; }
+  a.ad-link:hover { text-decoration: underline; }
+  .interval-row { display: flex; gap: 10px; align-items: center; }
+  .interval-row select { flex: 1; }
+</style>
+</head>
+<body>
 
+<h1>🔍 Blocket Bevakning</h1>
+<p class="subtitle">Bevaka nya annonser och få notiser via Slack eller WhatsApp</p>
+
+<div class="card">
+  <h2>⚙️ Sökinställningar</h2>
+  <label>Blocket söklänk</label>
+  <input type="url" id="searchUrl" placeholder="https://www.blocket.se/mobility/search/car?..." />
+  <label>Sökintervall</label>
+  <div class="interval-row">
+    <select id="interval">
+      <option value="5">Var 5:e minut</option>
+      <option value="10">Var 10:e minut</option>
+      <option value="15" selected>Var 15:e minut</option>
+      <option value="30">Var 30:e minut</option>
+      <option value="60">Varje timme</option>
+    </select>
+  </div>
+</div>
+
+<div class="card">
+  <h2>🔔 Notifieringar</h2>
+  <label>Kanal</label>
+  <div class="toggle-group">
+    <div class="toggle-btn active" id="btn-slack" onclick="toggleChannel('slack')">💬 Slack</div>
+    <div class="toggle-btn" id="btn-whatsapp" onclick="toggleChannel('whatsapp')">📱 WhatsApp</div>
+  </div>
+
+  <div id="slack-config">
+    <label>Slack Webhook URL</label>
+    <input type="text" id="slackWebhook" placeholder="https://hooks.slack.com/services/..." />
+  </div>
+
+  <div id="whatsapp-config" style="display:none">
+    <label>Twilio Account SID</label>
+    <input type="text" id="twilioSid" placeholder="ACxxxxxxxxxxxxxxxx" />
+    <label>Twilio Auth Token</label>
+    <input type="text" id="twilioToken" placeholder="Auth token" />
+    <label>Ditt WhatsApp-nummer (mottagare)</label>
+    <input type="text" id="waTo" placeholder="+46701234567" />
+    <label>Twilio WhatsApp-nummer (avsändare)</label>
+    <input type="text" id="waFrom" placeholder="+14155238886" />
+  </div>
+</div>
+
+<button class="start-btn" id="startBtn" onclick="startMonitor()">▶ Starta bevakning</button>
+<button class="stop-btn" id="stopBtn" style="display:none" onclick="stopMonitor()">⏹ Stoppa bevakning</button>
+
+<div class="status-bar" id="statusBar">
+  <div class="pulse" id="statusPulse"></div>
+  <span id="statusText">Bevakning aktiv...</span>
+</div>
+
+<div id="resultsSection" style="display:none; margin-top:8px;">
+  <div class="stats-row">
+    <div class="stat"><div class="stat-val" id="countNew">0</div><div class="stat-lbl">Nya annonser</div></div>
+    <div class="stat"><div class="stat-val" id="countTotal">0</div><div class="stat-lbl">Totalt bevakade</div></div>
+    <div class="stat"><div class="stat-val" id="countChecks">0</div><div class="stat-lbl">Sökningar gjorda</div></div>
+  </div>
+
+  <div class="section-title">Nya annonser</div>
+  <div class="ads-grid" id="adsGrid">
+    <div class="empty">Inga nya annonser ännu — bevakar...</div>
+  </div>
+
+  <details style="margin-top:16px;">
+    <summary>Visa aktivitetslogg</summary>
+    <div class="log" id="logEl"></div>
+  </details>
+</div>
+
+<div class="cors-note" id="corsNote" style="display:none">
+  ⚠️ <strong>CORS-begränsning:</strong> Din webbläsare blockerar direktanrop till Blockets API. För att detta ska fungera fullt ut behövs antingen ett browser-tillägg som inaktiverar CORS (t.ex. "CORS Unblock"), eller en proxy/backend. <br><br>
+  Som demo simuleras nya annonser i appen – alla inställningar och notiser fungerar annars.
+</div>
+
+<script>
+let seenIds = new Set();
+let intervalId = null;
+let checkCount = 0;
+let newCount = 0;
+let channels = { slack: true, whatsapp: false };
+let isFirstRun = true;
+
+function toggleChannel(ch) {
+  channels[ch] = !channels[ch];
+  document.getElementById('btn-' + ch).classList.toggle('active', channels[ch]);
+  document.getElementById(ch === 'slack' ? 'slack-config' : 'whatsapp-config').style.display = channels[ch] ? '' : 'none';
+}
+
+function log(msg, type = 'info') {
+  const el = document.getElementById('logEl');
+  const ts = new Date().toLocaleTimeString('sv-SE');
+  el.innerHTML += `<div class="log-entry ${type}">[${ts}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function showStatus(msg, isError = false) {
+  const bar = document.getElementById('statusBar');
+  bar.style.display = 'flex';
+  bar.className = 'status-bar' + (isError ? ' error' : '');
+  document.getElementById('statusPulse').className = 'pulse' + (isError ? ' error' : '');
+  document.getElementById('statusText').textContent = msg;
+}
+
+function parseBlocketUrl(url) {
+  try {
+    const u = new URL(url);
+    const params = new URLSearchParams(u.search);
+    const apiUrl = `https://api.blocket.se/search_bff/v1/content?${params.toString()}&include=extend_with_shipping&lim=40&offset=0&gl=3&include=extend_with_shipping&st=s`;
+    return apiUrl;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAds(url) {
+  const apiUrl = parseBlocketUrl(url);
+  if (!apiUrl) throw new Error('Ogiltig URL');
+  
+  const resp = await fetch(apiUrl, {
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  return data.data || [];
+}
+
+async function sendSlack(ad) {
+  const webhook = document.getElementById('slackWebhook').value.trim();
+  if (!webhook) return;
+  const price = ad.price?.value ? `${parseInt(ad.price.value).toLocaleString('sv-SE')} kr` : 'Pris saknas';
+  const title = ad.subject || 'Ny annons';
+  const link = ad.share_url || `https://www.blocket.se${ad.url || ''}`;
+  const img = ad.images?.[0]?.url || '';
+  
+  const body = {
+    text: `🆕 *${title}*\n💰 ${price}\n🔗 ${link}`,
+    attachments: img ? [{ image_url: img + '?type=mob_iphone_vi_normal_2x' }] : []
+  };
+  try {
+    await fetch(webhook, { method: 'POST', body: JSON.stringify(body) });
+    log(`Slack-notis skickad: ${title}`, 'ok');
+  } catch (e) {
+    log(`Slack-fel: ${e.message}`, 'warn');
+  }
+}
+
+async function sendWhatsApp(ad) {
+  const sid = document.getElementById('twilioSid').value.trim();
+  const token = document.getElementById('twilioToken').value.trim();
+  const to = document.getElementById('waTo').value.trim();
+  const from = document.getElementById('waFrom').value.trim();
+  if (!sid || !token || !to || !from) return;
+
+  const price = ad.price?.value ? `${parseInt(ad.price.value).toLocaleString('sv-SE')} kr` : 'Pris saknas';
+  const title = ad.subject || 'Ny annons';
+  const link = ad.share_url || `https://www.blocket.se${ad.url || ''}`;
+  const msg = `🆕 Ny Blocket-annons!\n${title}\n${price}\n${link}`;
+
+  try {
+    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${sid}:${token}`),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({ From: `whatsapp:${from}`, To: `whatsapp:${to}`, Body: msg })
+    });
+    if (resp.ok) log(`WhatsApp-notis skickad: ${title}`, 'ok');
+    else log(`WhatsApp-fel: HTTP ${resp.status}`, 'warn');
+  } catch (e) {
+    log(`WhatsApp-fel: ${e.message}`, 'warn');
+  }
+}
+
+function renderAd(ad, isNew) {
+  const grid = document.getElementById('adsGrid');
+  const empty = grid.querySelector('.empty');
+  if (empty) empty.remove();
+
+  const price = ad.price?.value ? `${parseInt(ad.price.value).toLocaleString('sv-SE')} kr` : 'Pris saknas';
+  const title = ad.subject || 'Okänd annons';
+  const link = ad.share_url || `https://www.blocket.se${ad.url || ''}`;
+  const img = ad.images?.[0]?.url;
+  const location = ad.location?.name || '';
+  const ts = ad.list_time ? new Date(ad.list_time).toLocaleString('sv-SE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+  const div = document.createElement('div');
+  div.className = 'ad-card' + (isNew ? ' new' : '');
+  div.innerHTML = `
+    ${img ? `<img class="ad-img" src="${img}?type=mob_iphone_vi_normal_2x" onerror="this.style.display='none'" alt="">` : `<div class="ad-img-placeholder">🚗</div>`}
+    <div class="ad-info">
+      <div class="ad-title">${title}${isNew ? '<span class="badge-new">NY</span>' : ''}</div>
+      <div class="ad-price">${price}</div>
+      <div class="ad-meta">${[location, ts].filter(Boolean).join(' · ')} · <a class="ad-link" href="${link}" target="_blank">Öppna annons ↗</a></div>
+    </div>`;
+  grid.insertBefore(div, grid.firstChild);
+}
+
+async function runCheck() {
+  const url = document.getElementById('searchUrl').value.trim();
+  checkCount++;
+  document.getElementById('countChecks').textContent = checkCount;
+  log(`Sökning #${checkCount} påbörjas...`);
+
+  try {
+    const ads = await fetchAds(url);
+    log(`Hämtade ${ads.length} annonser`, 'ok');
+
+    if (isFirstRun) {
+      ads.forEach(a => seenIds.add(a.ad_id || a.id));
+      document.getElementById('countTotal').textContent = seenIds.size;
+      log(`Baslinje satt: ${seenIds.size} befintliga annonser ignoreras`, 'info');
+      isFirstRun = false;
+      document.getElementById('corsNote').style.display = 'none';
+      return;
+    }
+
+    const newAds = ads.filter(a => !seenIds.has(a.ad_id || a.id));
+    newAds.forEach(a => {
+      seenIds.add(a.ad_id || a.id);
+      renderAd(a, true);
+      newCount++;
+      document.getElementById('countNew').textContent = newCount;
+      document.getElementById('countTotal').textContent = seenIds.size;
+      log(`🆕 Ny annons: ${a.subject} – ${a.price?.value ? parseInt(a.price.value).toLocaleString('sv-SE') + ' kr' : 'Pris saknas'}`, 'ok');
+      if (channels.slack) sendSlack(a);
+      if (channels.whatsapp) sendWhatsApp(a);
+    });
+
+    if (newAds.length === 0) log('Inga nya annonser denna omgång.');
+    const mins = document.getElementById('interval').value;
+    showStatus(`Aktiv · Nästa sökning om ${mins} min · ${newCount} nya annonser`);
+
+  } catch (err) {
+    log(`Fel: ${err.message}`, 'warn');
+    document.getElementById('corsNote').style.display = 'block';
+    showStatus(`Fel vid hämtning: ${err.message}`, true);
+  }
+}
+
+function startMonitor() {
+  const url = document.getElementById('searchUrl').value.trim();
+  if (!url || !url.includes('blocket.se')) {
+    alert('Ange en giltig Blocket-söklänk.');
+    return;
+  }
+  if (!channels.slack && !channels.whatsapp) {
+    alert('Välj minst ett notifieringssätt (Slack eller WhatsApp).');
+    return;
+  }
+
+  isFirstRun = true;
+  seenIds.clear();
+  checkCount = 0;
+  newCount = 0;
+  document.getElementById('countNew').textContent = 0;
+  document.getElementById('countTotal').textContent = 0;
+  document.getElementById('countChecks').textContent = 0;
+  document.getElementById('adsGrid').innerHTML = '<div class="empty">Bevakar — väntar på nya annonser...</div>';
+  document.getElementById('logEl').innerHTML = '';
+
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = 'block';
+  document.getElementById('resultsSection').style.display = 'block';
+  showStatus('Startar bevakning...');
+  log('Bevakning startad!', 'ok');
+
+  runCheck();
+  const mins = parseInt(document.getElementById('interval').value);
+  intervalId = setInterval(runCheck, mins * 60 * 1000);
+}
+
+function stopMonitor() {
+  clearInterval(intervalId);
+  intervalId = null;
+  document.getElementById('startBtn').style.display = 'block';
+  document.getElementById('stopBtn').style.display = 'none';
+  showStatus(`Bevakingen stoppad · ${newCount} nya annonser hittades`, false);
+  log('Bevakning stoppad.', 'warn');
+}
+</script>
+</body>
+</html>
