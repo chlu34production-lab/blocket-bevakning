@@ -9,46 +9,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-// Sparar cookies mellan anrop
-let sessionCookie = "";
-
-const HEADERS = {
-  "Accept":             "application/json, text/plain, */*",
-  "Accept-Language":    "sv-SE,sv;q=0.9,en;q=0.8",
-  "User-Agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  "Referer":            "https://www.blocket.se/",
-  "Origin":             "https://www.blocket.se",
-  "sec-ch-ua":          '"Chromium";v="124", "Google Chrome";v="124"',
-  "sec-ch-ua-mobile":   "?0",
-  "sec-ch-ua-platform": '"Windows"',
-  "sec-fetch-dest":     "empty",
-  "sec-fetch-mode":     "cors",
-  "sec-fetch-site":     "same-site"
-};
-
-// Hämta cookies från blocket.se först
-async function ensureSession() {
-  if (sessionCookie) return;
-  try {
-    const r = await fetch("https://www.blocket.se/", {
-      headers: {
-        ...HEADERS,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "none"
-      }
-    });
-    const raw = r.headers.raw?.()["set-cookie"] || r.headers.getSetCookie?.() || [];
-    if (raw.length) {
-      sessionCookie = raw.map(c => c.split(";")[0]).join("; ");
-      console.log("✅ Session-cookie hämtad");
-    }
-  } catch (e) {
-    console.warn("⚠️ Kunde inte hämta session-cookie:", e.message);
-  }
-}
-
 // ── Hälsokoll ──────────────────────────────────────────────
 app.get("/health", (_, res) => res.json({ ok: true }));
 
@@ -59,8 +19,6 @@ app.get("/api/search", async (req, res) => {
     if (!raw || !raw.includes("blocket.se"))
       return res.status(400).json({ error: "Ogiltig URL" });
 
-    await ensureSession();
-
     const u = new URL(raw);
     u.searchParams.set("lim",     "40");
     u.searchParams.set("offset",  "0");
@@ -69,33 +27,26 @@ app.get("/api/search", async (req, res) => {
     u.searchParams.set("st",      "s");
 
     const apiUrl = `https://api.blocket.se/search_bff/v1/content?${u.searchParams}`;
-    console.log("→ Anropar:", apiUrl);
-
     const r = await fetch(apiUrl, {
       headers: {
-        ...HEADERS,
-        ...(sessionCookie ? { Cookie: sessionCookie } : {})
+        "Accept":                  "application/json, text/plain, */*",
+        "Accept-Language":         "sv-SE,sv;q=0.9,en;q=0.8",
+        "Accept-Encoding":         "gzip, deflate, br",
+        "User-Agent":              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Referer":                 "https://www.blocket.se/",
+        "Origin":                  "https://www.blocket.se",
+        "sec-ch-ua":               '"Chromium";v="124", "Google Chrome";v="124"',
+        "sec-ch-ua-mobile":        "?0",
+        "sec-ch-ua-platform":      '"Windows"',
+        "sec-fetch-dest":          "empty",
+        "sec-fetch-mode":          "cors",
+        "sec-fetch-site":          "same-site"
       }
     });
-
-    console.log("← Blocket svarade:", r.status);
-
-    // Om 503, nollställ cookie och försök igen en gång
-    if (r.status === 503) {
-      sessionCookie = "";
-      await ensureSession();
-      const r2 = await fetch(apiUrl, {
-        headers: { ...HEADERS, ...(sessionCookie ? { Cookie: sessionCookie } : {}) }
-      });
-      if (!r2.ok) throw new Error(`Blocket svarade ${r2.status} (retry)`);
-      return res.json(await r2.json());
-    }
-
     if (!r.ok) throw new Error(`Blocket svarade ${r.status}`);
-    res.json(await r.json());
-
+    const data = await r.json();
+    res.json(data);
   } catch (e) {
-    console.error("Fel:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
