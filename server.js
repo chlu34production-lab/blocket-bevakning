@@ -29,8 +29,18 @@ app.get("/api/search", async (req, res) => {
     const apiUrl = `https://api.blocket.se/search_bff/v1/content?${u.searchParams}`;
     const r = await fetch(apiUrl, {
       headers: {
-        Accept:       "application/json",
-        "User-Agent": "Mozilla/5.0 (compatible; BlocketMonitor/1.0)"
+        "Accept":                  "application/json, text/plain, */*",
+        "Accept-Language":         "sv-SE,sv;q=0.9,en;q=0.8",
+        "Accept-Encoding":         "gzip, deflate, br",
+        "User-Agent":              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Referer":                 "https://www.blocket.se/",
+        "Origin":                  "https://www.blocket.se",
+        "sec-ch-ua":               '"Chromium";v="124", "Google Chrome";v="124"',
+        "sec-ch-ua-mobile":        "?0",
+        "sec-ch-ua-platform":      '"Windows"',
+        "sec-fetch-dest":          "empty",
+        "sec-fetch-mode":          "cors",
+        "sec-fetch-site":          "same-site"
       }
     });
     if (!r.ok) throw new Error(`Blocket svarade ${r.status}`);
