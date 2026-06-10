@@ -70,7 +70,6 @@ input:focus, select:focus { border-color: #6366f1; background: #fff; }
 </div>
 
 <div class="container">
-
   <div class="card">
     <div class="card-title">⚙️ Sökinställningar</div>
     <label>Blocket söklänk</label>
@@ -127,13 +126,10 @@ input:focus, select:focus { border-color: #6366f1; background: #fff; }
       <details><summary>Visa logg</summary><div class="log" id="logEl"></div></details>
     </div>
   </div>
-
 </div>
 
 <script>
-  // ← Byt ut denna URL när Render gett dig din adress
-  const PROXY = ""; // Direktanrop från webbläsaren (kräver CORS-tillägg)
-
+  const PROXY = "http://localhost:3000";
   let seen = new Set(), tid = null, checks = 0, news = 0, firstRun = true;
   let ch = { slack: false, whatsapp: false };
 
@@ -181,10 +177,10 @@ input:focus, select:focus { border-color: #6366f1; background: #fff; }
     const wh = document.getElementById('slackUrl').value.trim();
     if (!wh) return;
     try {
-      await fetch(wh, {
+      await fetch(`${PROXY}/api/notify/slack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: `🆕 *${ad.subject}*\n💰 ${ad.price?.value ? parseInt(ad.price.value).toLocaleString('sv-SE') + ' kr' : 'Pris saknas'}\n🔗 ${ad.share_url || 'https://www.blocket.se' + (ad.url||'')}` })
+        body: JSON.stringify({ webhook: wh, ad })
       });
       log('Slack ✓ ' + ad.subject, 'ok');
     } catch(e) { log('Slack fel: ' + e.message, 'warn'); }
@@ -199,13 +195,14 @@ input:focus, select:focus { border-color: #6366f1; background: #fff; }
     const price = ad.price?.value ? parseInt(ad.price.value).toLocaleString('sv-SE') + ' kr' : 'Pris saknas';
     const link  = ad.share_url || 'https://www.blocket.se' + (ad.url || '');
     try {
-      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      const r = await fetch(`${PROXY}/api/notify/whatsapp`, {
         method: 'POST',
-        headers: { 'Authorization': 'Basic ' + btoa(sid+':'+token), 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ From: 'whatsapp:'+from, To: 'whatsapp:'+to, Body: `🆕 ${ad.subject}\n💰 ${price}\n${link}` })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid, token, to, from, ad })
       });
-      if (r.ok) log('WhatsApp ✓ ' + ad.subject, 'ok');
-      else log('WhatsApp fel: HTTP ' + r.status, 'warn');
+      const data = await r.json();
+      if (data.ok) log('WhatsApp ✓ ' + ad.subject, 'ok');
+      else log('WhatsApp fel: ' + data.error, 'warn');
     } catch(e) { log('WhatsApp fel: ' + e.message, 'warn'); }
   }
 
@@ -215,17 +212,7 @@ input:focus, select:focus { border-color: #6366f1; background: #fff; }
     document.getElementById('sChecks').textContent = checks;
     log('Sökning #' + checks + ' ...');
     try {
-      const u = new URL(url);
-      u.searchParams.set("lim", "40");
-      u.searchParams.set("offset", "0");
-      u.searchParams.set("gl", "3");
-      u.searchParams.set("include", "extend_with_shipping");
-      u.searchParams.set("st", "s");
-      const apiUrl = `https://api.blocket.se/search_bff/v1/content?${u.searchParams}`;
-
-      const r = await fetch(apiUrl, {
-        headers: { "Accept": "application/json" }
-      });
+      const r = await fetch(`${PROXY}/api/search?url=${encodeURIComponent(url)}`);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
       if (data.error) throw new Error(data.error);
@@ -283,6 +270,30 @@ input:focus, select:focus { border-color: #6366f1; background: #fff; }
     setStatus('Stoppad · ' + news + ' nya annonser hittades', 'idle');
     log('Bevakning stoppad.', 'warn');
   }
+
+  async function loadConfig() {
+    try {
+      const r = await fetch(`${PROXY}/api/config`);
+      const c = await r.json();
+      if (c.twilioSid)    document.getElementById('tSid').value     = c.twilioSid;
+      if (c.twilioToken)  document.getElementById('tToken').value   = c.twilioToken;
+      if (c.twilioFrom)   document.getElementById('tFrom').value    = c.twilioFrom;
+      if (c.twilioTo)     document.getElementById('tTo').value      = c.twilioTo;
+      if (c.slackWebhook) document.getElementById('slackUrl').value = c.slackWebhook;
+      if (c.twilioSid || c.twilioToken) {
+        ch.whatsapp = true;
+        document.getElementById('t-whatsapp').classList.add('on');
+        document.getElementById('c-whatsapp').style.display = '';
+      }
+      if (c.slackWebhook) {
+        ch.slack = true;
+        document.getElementById('t-slack').classList.add('on');
+        document.getElementById('c-slack').style.display = '';
+      }
+      console.log("✅ Inställningar laddade");
+    } catch(e) { console.log("Ingen config hittad"); }
+  }
+  loadConfig();
 </script>
 </body>
 </html>
